@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="he">
+<head>
+  <meta charset="utf-8" />
+  <title>שליחת טיוטות ל-Outlook (מבחן)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>
+      שליחת טיוטות ל-Outlook
+      <span>(מבחן)</span>
+    </h2>
+    <form id="mailForm">
+      <label>נמענים (מופרדים בפסיק או נקודה־פסיק):</label>
+      <input type="text" id="recipients" placeholder="user1@example.com; user2@example.com"/>
+
+      <label>נושא:</label>
+      <input type="text" id="subject"/>
+
+      <label>גוף ההודעה:</label>
+      <textarea id="body"></textarea>
+
+      <label>קובץ מצורף (קורות חיים):</label>
+      <input type="file" id="fileInput"/>
+
+      <button type="submit">שלח ל-Outlook</button>
+    </form>
+
+    <pre id="log"></pre>
+  </div>
+
+  <script>
+    const form = document.getElementById('mailForm');
+    const log = document.getElementById('log');
+
+    function logMsg(m){ log.textContent += m + "\n"; }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const recipientsRaw = document.getElementById('recipients').value.trim();
+      const subject = document.getElementById('subject').value;
+      const body = document.getElementById('body').value;
+      const fileInput = document.getElementById('fileInput');
+
+      const recipients = recipientsRaw
+        .split(/[;,]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      if (recipients.length === 0) {
+        alert('יש להזין לפחות נמענ/ת אחת');
+        return;
+      }
+
+      let fileObj = null;
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        const base64 = await new Promise((res, rej) => {
+          reader.onload = () => res(reader.result);
+          reader.onerror = rej;
+        });
+        fileObj = { name: file.name, dataUrl: base64 };
+      }
+
+      const payload = { subject, body, recipients, file: fileObj };
+
+      try {
+        const resp = await fetch('http://localhost:5000/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error(`Server error: ${resp.status} ${txt}`);
+        }
+        const j = await resp.json();
+        logMsg('הבקשה נשלחה בהצלחה: ' + JSON.stringify(j));
+      } catch (err) {
+        logMsg('שגיאה בשליחה ל-local app: ' + err.message);
+        alert('שגיאה: ודא שהתוכנה המקומית פועלת על המחשב (localhost:5000).');
+      }
+    });
+  </script>
+</body>
+</html>
